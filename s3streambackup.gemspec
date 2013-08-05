@@ -5,17 +5,17 @@
 
 Gem::Specification.new do |s|
   s.name = "s3streambackup"
-  s.version = "0.0.0"
+  s.version = "0.1.0"
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
   s.authors = ["Jakub Pastuszek"]
   s.date = "2013-08-05"
-  s.description = "stores data from STDIN in S3 object using multipart upload and remove oldests backups to keep maximum desired backup object count"
+  s.description = "Stores data from STDIN in S3 object using multipart upload and removes oldest backups to keep maximum desired backup object count."
   s.email = "jpastuszek@gmail.com"
   s.executables = ["s3streambackup"]
   s.extra_rdoc_files = [
     "LICENSE.txt",
-    "README.rdoc"
+    "README.md"
   ]
   s.files = [
     ".document",
@@ -23,14 +23,14 @@ Gem::Specification.new do |s|
     "Gemfile",
     "Gemfile.lock",
     "LICENSE.txt",
-    "README.rdoc",
+    "README.md",
     "Rakefile",
     "VERSION",
     "bin/s3streambackup",
     "features/s3streambackup.feature",
     "features/step_definitions/s3streambackup_steps.rb",
     "features/support/env.rb",
-    "lib/s3streambackup.rb",
+    "s3streambackup.gemspec",
     "spec/s3streambackup_spec.rb",
     "spec/spec_helper.rb"
   ]
