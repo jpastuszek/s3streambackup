@@ -80,8 +80,8 @@ begin
 		use_ssl: ! settings.plain
 	)
 
-	upload_date = Time.now.utc.strftime "%y%m%d-%H%M%S"
-	prefix = "#{settings.prefix}#{settings.name}.bac-"
+	upload_date = Time.now.utc.strftime "%y%m%d_%H%M%S"
+	prefix = "#{settings.prefix}#{settings.name}.backup."
 	path = "#{prefix}#{upload_date}"
 
 	bucket = s3.buckets[settings.bucket]
@@ -100,11 +100,13 @@ begin
 
 	backups = bucket.objects.with_prefix(prefix).to_a
 
-	log.info "keeping #{settings.keep} latest buckups of #{backups.length} storred"
+	log.info "keeping maximum #{settings.keep} latest buckups of #{backups.length} storred"
 
-	backups.take(backups.length - settings.keep).each do |backup|
-		log.info "removing oldest backup: #{backup.key}"
-		backup.delete
+	if backups.length > settings.keep
+		backups.take(backups.length - settings.keep).each do |backup|
+			log.info "removing oldest backup: #{backup.key}"
+			backup.delete
+		end
 	end
 rescue => error
 	msg = "#{error.class.name}: #{error.message}\n#{error.backtrace.join("\n")}"
