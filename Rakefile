@@ -17,8 +17,8 @@ Jeweler::Tasks.new do |gem|
   gem.name = "s3streambackup"
   gem.homepage = "http://github.com/jpastuszek/s3streambackup"
   gem.license = "MIT"
-  gem.summary = %Q{backup stream stdin to s3}
-  gem.description = %Q{TODO: longer description of your gem}
+  gem.summary = %Q{streaming backup of STDIN to S3 object}
+  gem.description = %Q{stores data from STDIN in S3 object using multipart upload and remove oldests backups to keep maximum desired backup object count}
   gem.email = "jpastuszek@gmail.com"
   gem.authors = ["Jakub Pastuszek"]
   # dependencies defined in Gemfile
