@@ -30,6 +30,7 @@ Gem::Specification.new do |s|
     "features/s3streambackup.feature",
     "features/step_definitions/s3streambackup_steps.rb",
     "features/support/env.rb",
+    "lib/s3streambackup.rb",
     "s3streambackup.gemspec",
     "spec/s3streambackup_spec.rb",
     "spec/spec_helper.rb"
