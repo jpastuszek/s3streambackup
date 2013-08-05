@@ -1,117 +1,53 @@
 #!/usr/bin/env ruby
+#
+$LOAD_PATH.unshift(File.join(File.dirname(__FILE__), '..', 'lib'))
+require 's3streambackup'
 
-require 'cli'
-require 'aws-sdk'
-require 'logger'
-
-## HACK: Auto select region based on location_constraint
-module AWS
-	class S3
-		class BucketCollection
-			def [](name)
-				# if name is DNS compatible we still cannot use it for writes if it does contain dots
-				return S3::Bucket.new(name.to_s, :owner => nil, :config => config) if client.dns_compatible_bucket_name?(name) and not name.include? '.'
-
-				# save region mapping for bucket for futher requests
-				@@location_cache = {} unless defined? @@location_cache
-				# if we have it cased use it; else try to fetch it and if it is nil bucket is in standard region
-				region = @@location_cache[name] || @@location_cache[name] = S3::Bucket.new(name.to_s, :owner => nil, :config => config).location_constraint || @@location_cache[name] = :standard
-
-				# no need to specify region if bucket is in standard region
-				return S3::Bucket.new(name.to_s, :owner => nil, :config => config) if region == :standard
-
-				# use same config but with region specified for buckets that are not DNS compatible or have dots and are not in standard region
-				S3::Bucket.new(name.to_s, :owner => nil, :config => config.with(region: region))
-			end
-		end
-	end
-end
-
-settings = CLI.new do
+S3StreamBackup.new do
+	cli do
 		stdin :data
-	    option :key, 
+		option :key, 
 			short: :k,
 			description: 'S3 key',
 			default: ENV['AWS_ACCESS_KEY_ID']
-		option :secret, 
-			short: :s,
-			description: 'S3 key secret',
-			default_label: '<secret>',
-			default: ENV['AWS_SECRET_ACCESS_KEY']
-		option :prefix,
-			short: :p,
-			description: 'prefix under which the objects will be kept',
-			default: ''
 		option :keep,
 			short: :K,
 			description: 'how many backup file to keep',
 			cast: Integer,
 			default: 2
-		option :log_file,
-			short: :l,
-			description: 'location of log file'
-		switch :plain,
-			description: 'use plain connections instead of SSL to S3'
-		switch :debug,
-			description: 'log debug messages'
-		argument :bucket,
-			description: 'name of bucket to upload data to'
 		argument :name,
 			description: 'name under which the object will be stored'
-end.parse! do |settings|
-	fail 'AWS_ACCESS_KEY_ID environment not set and --key not used' unless settings.key
-	fail 'AWS_SECRET_ACCESS_KEY environment not set and --secret not used' unless settings.secret
-end
-
-log = Logger.new(settings.log_file ? settings.log_file : STDOUT)
-log.formatter = proc do |severity, datetime, progname, msg|
-	"[#{datetime.utc.strftime "%Y-%m-%d %H:%M:%S.%6N %Z"}] [#{$$}] #{severity}: #{msg.strip}\n"
-end
-
-log.level = Logger::INFO
-log.level = Logger::DEBUG if settings.debug
-
-begin
-	s3 = AWS::S3.new(
-		access_key_id: settings.key,
-		secret_access_key: settings.secret,
-		logger: log,
-		log_level: :debug,
-		use_ssl: ! settings.plain
-	)
-
-	upload_date = Time.now.utc.strftime "%y%m%d_%H%M%S"
-	prefix = "#{settings.prefix}#{settings.name}.backup."
-	path = "#{prefix}#{upload_date}"
-
-	bucket = s3.buckets[settings.bucket]
-	backup = bucket.objects[path] 
-	log.info "writting to: #{path}"
-
-	# make sure we use multipart upload
-	total_bytes = 0
-	backup.write(estimated_content_length: 10 * 1024 ** 3) do |buffer, bytes|
-		log.info "#{total_bytes} bytes written..."
-		data = settings.stdin.read(bytes)
-		total_bytes += data.bytesize
-		buffer.write data
 	end
-	log.info "total upload size: #{total_bytes}"
 
-	backups = bucket.objects.with_prefix(prefix).to_a
+	main do |settings, log, s3|
+		upload_date = Time.now.utc.strftime "%y%m%d_%H%M%S"
+		prefix = "#{settings.prefix}#{settings.name}.backup."
+		path = "#{prefix}#{upload_date}"
 
-	log.info "keeping maximum #{settings.keep} latest buckups of #{backups.length} storred"
+		bucket = s3.buckets[settings.bucket]
+		backup = bucket.objects[path] 
+		log.info "writting to: #{path}"
 
-	if backups.length > settings.keep
-		backups.take(backups.length - settings.keep).each do |backup|
-			log.info "removing oldest backup: #{backup.key}"
-			backup.delete
+		# make sure we use multipart upload
+		total_bytes = 0
+		backup.write(estimated_content_length: 10 * 1024 ** 3) do |buffer, bytes|
+			log.info "#{total_bytes} bytes written..."
+			data = settings.stdin.read(bytes)
+			total_bytes += data.bytesize
+			buffer.write data
+		end
+		log.info "total upload size: #{total_bytes}"
+
+		backups = bucket.objects.with_prefix(prefix).to_a
+
+		log.info "keeping maximum #{settings.keep} latest buckups of #{backups.length} storred"
+
+		if backups.length > settings.keep
+			backups.take(backups.length - settings.keep).each do |backup|
+				log.info "removing oldest backup: #{backup.key}"
+				backup.delete
+			end
 		end
 	end
-rescue => error
-	msg = "#{error.class.name}: #{error.message}\n#{error.backtrace.join("\n")}"
-	log.error msg
-	STDERR.write msg 
-	exit 10
 end
 
