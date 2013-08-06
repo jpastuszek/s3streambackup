@@ -49,8 +49,12 @@ class S3StreamBackup
 					description: 'location of log file'
 				switch :plain,
 					description: 'use plain connections instead of SSL to S3'
-				switch :debug,
+				switch :verbose,
+					short: :v,
 					description: 'log debug messages'
+				switch :debug,
+					short: :d,
+					description: 'log AWS SDK debug messages'
 				argument :bucket,
 					description: 'name of bucket to upload data to'
 				instance_eval &cli_setup if cli_setup
@@ -66,13 +70,13 @@ class S3StreamBackup
 		end
 
 		log.level = Logger::INFO
-		log.level = Logger::DEBUG if settings.debug
+		log.level = Logger::DEBUG if settings.verbose or settings.debug
 
 		begin
 			s3 = AWS::S3.new(
 				access_key_id: settings.key,
 				secret_access_key: settings.secret,
-				logger: log,
+				logger: settings.debug ? log : nil,
 				log_level: :debug,
 				use_ssl: ! settings.plain
 			)
