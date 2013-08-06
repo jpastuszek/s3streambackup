@@ -22,7 +22,7 @@ S3StreamBackup.new do
 	main do |settings, log, s3|
 		upload_date = Time.now.utc.strftime "%y%m%d_%H%M%S"
 		prefix = "#{settings.prefix}#{settings.name}.backup."
-		path = "#{prefix}#{upload_date}"
+		path = "#{prefix}#{upload_date}#{settings.postfix}"
 
 		bucket = s3.buckets[settings.bucket]
 		backup = bucket.objects[path] 
@@ -30,8 +30,11 @@ S3StreamBackup.new do
 
 		# make sure we use multipart upload
 		total_bytes = 0
-		backup.write(estimated_content_length: 10 * 1024 ** 3) do |buffer, bytes|
-			log.info "#{total_bytes} bytes written..."
+		backup.write(
+			content_type: 'application/octet-stream',
+			estimated_content_length: 10 * 1024 ** 3
+		) do |buffer, bytes|
+			log.debug "#{total_bytes} bytes written..."
 			data = settings.stdin.read(bytes)
 			total_bytes += data.bytesize
 			buffer.write data

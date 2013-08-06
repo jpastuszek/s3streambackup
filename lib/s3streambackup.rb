@@ -38,7 +38,11 @@ class S3StreamBackup
 					default: ENV['AWS_SECRET_ACCESS_KEY']
 				option :prefix,
 					short: :p,
-					description: 'prefix under which the objects will be kept',
+					description: 'prefix under which the backup objects are kept',
+					default: ''
+				option :postfix,
+					short: :P,
+					description: 'postfix which is appended to backup objects',
 					default: ''
 				option :log_file,
 					short: :l,
