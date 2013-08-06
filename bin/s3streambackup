@@ -1,22 +1,21 @@
 #!/usr/bin/env ruby
-#
+
 $LOAD_PATH.unshift(File.join(File.dirname(__FILE__), '..', 'lib'))
 require 's3streambackup'
 
 S3StreamBackup.new do
 	cli do
+		description 'Store backup from STDIN to S3'
 		stdin :data
-		option :key, 
-			short: :k,
-			description: 'S3 key',
-			default: ENV['AWS_ACCESS_KEY_ID']
 		option :keep,
 			short: :K,
 			description: 'how many backup file to keep',
 			cast: Integer,
 			default: 2
-		argument :name,
-			description: 'name under which the object will be stored'
+		option :postfix,
+			short: :P,
+			description: 'postfix which is appended to backup objects',
+			default: ''
 	end
 
 	main do |settings, log, s3|
@@ -29,17 +28,17 @@ S3StreamBackup.new do
 		log.info "writting to: #{path}"
 
 		# make sure we use multipart upload
-		total_bytes = 0
+		total_bytes = ProgeressLogger.new
 		backup.write(
 			content_type: 'application/octet-stream',
 			estimated_content_length: 10 * 1024 ** 3
 		) do |buffer, bytes|
-			log.debug "#{total_bytes} bytes written..."
+			total_bytes.log(log, ' written...')
 			data = settings.stdin.read(bytes)
-			total_bytes += data.bytesize
+			total_bytes << data.bytesize
 			buffer.write data
 		end
-		log.info "total upload size: #{total_bytes}"
+		log.info "total upload size: #{total_bytes.in_bytes_auto}"
 
 		backups = bucket.objects.with_prefix(prefix).to_a
 

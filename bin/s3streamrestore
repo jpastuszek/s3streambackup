@@ -1,0 +1,66 @@
+#!/usr/bin/env ruby
+
+$LOAD_PATH.unshift(File.join(File.dirname(__FILE__), '..', 'lib'))
+require 's3streambackup'
+
+S3StreamBackup.new do
+	cli do
+		description 'Restore backup from S3 to STDOUT'
+		option :keep,
+			short: :K,
+			description: 'how many backup file to keep',
+			cast: Integer,
+			default: 2
+		option :postfix,
+			short: :P,
+			description: 'ignored',
+			default: ''
+		argument :date,
+			description: 'date of the backup to restore e.g 130806_090317; if not specified list available backups',
+			required: false
+	end
+
+	main do |settings, log, s3|
+		prefix = "#{settings.prefix}#{settings.name}.backup."
+
+		bucket = s3.buckets[settings.bucket]
+		backups = bucket.objects.with_prefix(prefix).to_a
+		if not settings.date
+			dates =  backups.map do |backup|
+				backup.key.to_s.match(/.backup.([0-9]{6}_[0-9]{6})/).captures.first
+			end
+			dates.each do |date|
+				puts "#{date} (#{Time.parse(date + ' +0000')})"
+			end
+			exit 0
+		end
+
+		backup = backups.select do |backup|
+			backup.key =~ /.backup.#{settings.date}/
+		end.first
+
+		fail "backup from date #{settings.date} not found" unless backup
+
+		length = backup.content_length
+		log.info "sourcing from: #{backup.key} length: #{length}"
+
+		total_bytes = ProgeressLogger.new
+		backup.read do |data|
+			total_bytes.log log, ' read...'
+			total_bytes << data.bytesize
+			begin
+				STDOUT.write data
+			rescue Errno::EPIPE
+				log.warn "STDOUT closed prematurely"
+				exit 1
+			end
+		end
+		if total_bytes != length
+			log.warn "got differnet amount of data (#{total_bytes} bytes) than expected (#{length} bytes)"
+			exit 1
+		else
+			log.info "total restore size: #{total_bytes.in_bytes_auto}"
+		end
+	end
+end
+

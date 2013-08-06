@@ -1,6 +1,7 @@
 require 'cli'
 require 'aws-sdk'
 require 'logger'
+require 's3streambackup/units'
 
 ## HACK: Auto select region based on location_constraint
 module AWS
@@ -31,6 +32,10 @@ class S3StreamBackup
 		cli_setup = @cli_setup
 		cli_verify_setup = @cli_verify_setup
 		settings = CLI.new do
+				option :key, 
+					short: :k,
+					description: 'S3 key',
+					default: ENV['AWS_ACCESS_KEY_ID']
 				option :secret, 
 					short: :s,
 					description: 'S3 key secret',
@@ -40,13 +45,9 @@ class S3StreamBackup
 					short: :p,
 					description: 'prefix under which the backup objects are kept',
 					default: ''
-				option :postfix,
-					short: :P,
-					description: 'postfix which is appended to backup objects',
-					default: ''
 				option :log_file,
 					short: :l,
-					description: 'location of log file'
+					description: 'location of log file; if not specifed log to STDERR'
 				switch :plain,
 					description: 'use plain connections instead of SSL to S3'
 				switch :verbose,
@@ -57,6 +58,8 @@ class S3StreamBackup
 					description: 'log AWS SDK debug messages'
 				argument :bucket,
 					description: 'name of bucket to upload data to'
+				argument :name,
+					description: 'name under which the object will be stored'
 				instance_eval &cli_setup if cli_setup
 		end.parse! do |settings|
 			fail 'AWS_ACCESS_KEY_ID environment not set and --key not used' unless settings.key
@@ -64,7 +67,7 @@ class S3StreamBackup
 			instance_eval &cli_verify_setup if cli_verify_setup
 		end
 
-		log = Logger.new(settings.log_file ? settings.log_file : STDOUT)
+		log = Logger.new(settings.log_file ? settings.log_file : STDERR)
 		log.formatter = proc do |severity, datetime, progname, msg|
 			"[#{datetime.utc.strftime "%Y-%m-%d %H:%M:%S.%6N %Z"}] [#{$$}] #{severity}: #{msg.strip}\n"
 		end
@@ -99,6 +102,36 @@ class S3StreamBackup
 
 	def main(&block)
 		@main = block
+	end
+end
+
+class ProgeressLogger
+	def initialize
+		@bytes = 0
+	end
+
+	def log(logger, postfix)
+		if logger.debug?
+			was, @output_bytes = @output_bytes || '', @bytes.in_bytes_auto
+			logger.debug "#{@output_bytes}#{postfix}"
+		end
+	end
+
+	def <<(bytes)
+		@bytes += bytes
+	end
+
+	def to_s
+		@bytes.to_s
+	end
+
+	include Comparable
+	def <=>(value)
+		@bytes <=> value
+	end
+
+	def in_bytes_auto
+		@bytes.in_bytes_auto
 	end
 end
 
