@@ -24,14 +24,14 @@ S3StreamBackup.new do
 		path = "#{prefix}#{upload_date}#{settings.postfix}"
 
 		bucket = s3.buckets[settings.bucket]
-		backup = bucket.objects[path] 
+		backup = bucket.objects[path]
 		log.info "writting to: #{path}"
 
 		# make sure we use multipart upload
 		total_bytes = ProgeressLogger.new
 		backup.write(
 			content_type: 'application/octet-stream',
-			estimated_content_length: 10 * 1024 ** 3
+			estimated_content_length: 50 * 1024 ** 3 # * 10_000 limits total backup size to 500GB
 		) do |buffer, bytes|
 			total_bytes.log(log, ' written...')
 			data = settings.stdin.read(bytes)
